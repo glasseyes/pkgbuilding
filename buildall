@@ -1,0 +1,10 @@
+#!/bin/bash
+
+buildfor sid pp
+for dist in "jessie" "precise" "trusty" "vivid" "wily" "xenial"; do
+  if [[ "$1" == "epoch" ]]; then
+    buildfor $dist epoch;
+  else
+    buildfor $dist;
+  fi
+done

@@ -1,0 +1,46 @@
+#!/bin/bash
+
+DG_ARCH=`dpkg-architecture -qDEB_BUILD_ARCH`
+vers=`dpkg-parsechangelog -S version`
+DG_PKG=`dpkg-parsechangelog -S Source`
+
+DG_VERS=${vers##*:}
+#echo "Version: $DG_VERS"
+
+#fonts-sil-gentium_1.03-2precise1_amd64.changes
+DG_CHANGES="${DG_PKG}_$DG_VERS${1}1_$DG_ARCH.changes"
+
+echo "Building for $1"
+
+if [[ "$1" == "sid" ]]; then
+  DG_CHANGES="${DG_PKG}_${DG_VERS}_${DG_ARCH}.changes"
+  echo "changes: $DG_CHANGES"
+  DIST=sid gbp buildpackage
+else
+  echo "changes: $DG_CHANGES"
+  DG_POSTEXPORT="dch -l$1 -D $1 'rebuild for $1' --force-distribution"
+  #echo "postexport: $DG_POSTEXPORT"
+
+  if [[ "$DG_PKG" =~  ^fonts- ]]; then
+    echo "Is a font package"
+    if [[ "$1" == "precise" ]]; then
+      echo "modify rules file for precise"
+      DG_POSTEXPORT="dch -l$1 -D $1 --force-distribution 'rebuild for $1 with modified dpkg-builddeb rules' && sed -e 's/-Sextreme //g' debian/rules > debian/rules.precise && mv debian/rules.precise debian/rules && chmod +x debian/rules"
+    fi
+  fi
+
+  if [[ "$2" == "epoch" ]]; then
+    DG_POSTEXPORT="$DG_POSTEXPORT && sed -i '0,/ (/ s/(/(1:/' debian/changelog"
+  fi
+
+  DIST=$1 gbp buildpackage --git-dist=$1 --git-postexport="$DG_POSTEXPORT" --git-builder="/usr/bin/git-pbuilder -sa"
+fi
+
+debsign --re-sign ../build-area/$DG_CHANGES
+
+if [[ "$2" == "pp" ]]; then
+  if [[ "$1" == "sid" ]]; then
+    echo "running piuparts"
+    sudo piuparts -p -t /var/cache/pbuilder/tmp ../build-area/$DG_CHANGES
+  fi
+fi
